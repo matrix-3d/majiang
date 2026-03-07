@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>麻将分析</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1>麻将分析</h1>
+    </header>
+
+    <main class="main">
+      <section class="card rules-card">
+        <h2>规则与设置</h2>
+        <p class="rules-text">手牌共 14 张，每种牌最多 4 张（共 34 种）。听牌形式：四面子一雀头；可选是否考虑七对子。</p>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="includeSevenPairs" checked>
+          <span>考虑七对子</span>
+        </label>
+      </section>
+
+      <section class="card hand-card">
+        <div class="hand-header">
+          <h2>当前手牌 <span id="handCount">0</span>/14</h2>
+          <div class="hand-actions">
+            <button type="button" class="btn btn-sort" id="btnSort" disabled>理牌</button>
+            <button type="button" class="btn btn-clear" id="btnClear" disabled>一键清空</button>
+          </div>
+        </div>
+        <div id="handArea" class="hand-area empty">
+          <p class="hint">在下方选牌区点击牌面添加，凑齐 14 张后点击「开始分析」</p>
+        </div>
+      </section>
+
+      <section class="card picker-card">
+        <h2>选牌</h2>
+        <p class="picker-hint">点击牌面添加，每种最多 4 张，共 14 张</p>
+        <div id="pickerGrid" class="picker-grid"></div>
+      </section>
+
+      <section class="card analyze-wrap" id="analyzeWrap" hidden>
+        <button type="button" class="btn btn-analyze" id="btnAnalyze">开始分析</button>
+      </section>
+
+      <section class="results-section" id="resultsSection" hidden>
+        <h2>打每张后的向听与进张</h2>
+        <div id="recommendedCard" class="recommended-card" hidden></div>
+        <div id="resultsList" class="results-list"></div>
+      </section>
+    </main>
+  </div>
+  <script src="js/mahjong.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
