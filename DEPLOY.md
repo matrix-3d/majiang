@@ -32,6 +32,8 @@ git push -u origin main
 
 几分钟后访问：**https://matrix-3d.github.io/majiang/**
 
+若需使用 **多人计分** 功能，请先按 [SUPABASE_SETUP.md](SUPABASE_SETUP.md) 配置 Supabase，并在此仓库中填写 `js/supabase-config.js` 的 URL 与 anon key 后推送。
+
 ---
 
 ## 3. 之后更新网站

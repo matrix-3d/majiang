@@ -17,7 +17,8 @@
 
     document.getElementById('btnSort').disabled = hand.length === 0;
     document.getElementById('btnClear').disabled = hand.length === 0;
-    document.getElementById('analyzeWrap').hidden = hand.length !== MahjongRules.handCount;
+
+    if (hand.length === MahjongRules.handCount) runAnalysis();
 
     area.querySelectorAll('.hand-tile').forEach(el => el.remove());
     if (hand.length === 0) return;
@@ -26,21 +27,29 @@
     sorted.forEach((tile) => {
       const chip = document.createElement('div');
       chip.className = `tile-chip hand-tile ${suitClass(tile.id)}`;
-      chip.innerHTML = tileDisplayName(tile.id) + '<span class="remove">×</span>';
+      chip.innerHTML = '<img class="tile-img" src="' + tileSvgUrl(tile.id) + '" alt="' + tileDisplayName(tile.id) + '" title="' + tileDisplayName(tile.id) + '"><span class="remove">×</span>';
       chip.addEventListener('click', (e) => {
         e.preventDefault();
         const i = hand.indexOf(tile);
-        if (i !== -1) { hand.splice(i, 1); renderHand(); refreshPickerBadges(); document.getElementById('resultsSection').hidden = true; }
+        if (i !== -1) { hand.splice(i, 1); renderHand(); refreshPickerBadges(); hideResults(); }
       });
       area.appendChild(chip);
     });
   }
 
+  function hideResults() {
+    document.getElementById('resultsSection').hidden = true;
+    document.getElementById('resultsPlaceholder').classList.remove('hidden');
+  }
+  function showResults() {
+    document.getElementById('resultsSection').hidden = false;
+    document.getElementById('resultsPlaceholder').classList.add('hidden');
+  }
   function removeFromHand(idx) {
     hand.splice(parseInt(idx, 10), 1);
     renderHand();
     refreshPickerBadges();
-    document.getElementById('resultsSection').hidden = true;
+    hideResults();
   }
 
   function addToHand(id) {
@@ -61,7 +70,7 @@
       wrap.className = 'picker-tile';
       const chip = document.createElement('div');
       chip.className = `tile-chip ${suitClass(id)}`;
-      chip.textContent = tileDisplayName(id);
+      chip.innerHTML = '<img class="tile-img" src="' + tileSvgUrl(id) + '" alt="' + tileDisplayName(id) + '" title="' + tileDisplayName(id) + '">';
       chip.dataset.tileId = id;
       const badge = document.createElement('span');
       badge.className = 'badge';
@@ -87,19 +96,29 @@
 
   function runAnalysis() {
     const includeSevenPairs = document.getElementById('includeSevenPairs').checked;
-    analysis = analyzeHand(hand.map(t => ({ id: t.id })), includeSevenPairs);
+    const hand14 = hand.map(t => ({ id: t.id }));
+
+    if (isAgari(hand14, includeSevenPairs)) {
+      showResults();
+      showAgariOnly();
+      return;
+    }
+
+    analysis = analyzeHand(hand14, includeSevenPairs);
     const rec = recommended(analysis);
-    const section = document.getElementById('resultsSection');
-    section.hidden = false;
+    showResults();
 
     const recCard = document.getElementById('recommendedCard');
+    const agariCard = document.getElementById('agariOnlyCard');
+    if (agariCard) agariCard.hidden = true;
     if (rec) {
       recCard.hidden = false;
+      const agariCnt = rec.agariTilesCount != null ? rec.agariTilesCount : rec.tenpaiTotalTiles;
       recCard.innerHTML = `
         <span class="star">★</span>
         <div class="text">
-          <strong>推荐打 ${tileDisplayName(rec.tile.id)}</strong>
-          <small>${rec.shanten === 0 ? `已听牌，胡 ${rec.tenpaiTotalTiles} 张` : `差 ${rec.shanten} 张上听，摸 ${rec.tenpaiTotalTiles} 张可上听`}</small>
+          <strong>推荐打 <img class="tile-img tile-img-inline" src="${tileSvgUrl(rec.tile.id)}" alt="${tileDisplayName(rec.tile.id)}" title="${tileDisplayName(rec.tile.id)}"></strong>
+          <small>${rec.shanten === 0 ? `已听牌，胡 ${agariCnt} 张` : `差 ${rec.shanten} 张上听，摸 ${rec.tenpaiTotalTiles} 张可上听`}</small>
         </div>
       `;
     } else {
@@ -107,6 +126,7 @@
     }
 
     const list = document.getElementById('resultsList');
+    list.hidden = false;
     list.innerHTML = '';
     analysis.forEach(opt => {
       const isRec = rec && rec.tile.id === opt.tile.id;
@@ -118,7 +138,7 @@
       card.innerHTML = `
         <div class="head">
           <span>打</span>
-          <div class="tile-chip ${suitClass(opt.tile.id)}">${tileDisplayName(opt.tile.id)}</div>
+          <div class="tile-chip ${suitClass(opt.tile.id)}"><img class="tile-img" src="${tileSvgUrl(opt.tile.id)}" alt="${tileDisplayName(opt.tile.id)}" title="${tileDisplayName(opt.tile.id)}"></div>
           <span>→</span>
           <span class="shanten">${opt.shanten === 0 ? '已听牌' : `差 ${opt.shanten} 张上听`}</span>
           <span class="tenpai-total">${tenpaiTotalText}</span>
@@ -140,7 +160,7 @@
         const div = document.createElement('div');
         div.className = 'tile-with-count';
         div.innerHTML = `
-          <div class="tile-chip ${suitClass(tile.id)}">${tileDisplayName(tile.id)}</div>
+          <div class="tile-chip ${suitClass(tile.id)}"><img class="tile-img" src="${tileSvgUrl(tile.id)}" alt="${tileDisplayName(tile.id)}" title="${tileDisplayName(tile.id)}"></div>
           <span class="remain">剩${remain}/共${MahjongRules.maxCopiesPerTileType}</span>
         `;
         document.getElementById(containerId).appendChild(div);
@@ -152,12 +172,32 @@
     });
   }
 
+  function showAgariOnly() {
+    const recCard = document.getElementById('recommendedCard');
+    const list = document.getElementById('resultsList');
+    const agariCard = document.getElementById('agariOnlyCard');
+    if (recCard) recCard.hidden = true;
+    if (list) { list.hidden = true; list.innerHTML = ''; }
+    if (agariCard) {
+      agariCard.hidden = false;
+      agariCard.innerHTML = `
+        <span class="agari-icon" aria-hidden="true">🀄</span>
+        <div class="text">
+          <strong>已和了</strong>
+          <small>当前 14 张已构成和牌，无需出牌</small>
+        </div>
+      `;
+    }
+  }
+
   function getImprovementOnly(opt) {
     const tenpaiIds = new Set(opt.tenpaiTiles.map(t => t.id));
     return opt.improvementTiles.filter(t => !tenpaiIds.has(t.id));
   }
 
-  document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
+  document.getElementById('includeSevenPairs').addEventListener('change', () => {
+    if (hand.length === MahjongRules.handCount) runAnalysis();
+  });
   document.getElementById('btnSort').addEventListener('click', () => {
     hand.sort((a, b) => a.id - b.id);
     renderHand();
@@ -167,7 +207,7 @@
     hand.length = 0;
     renderHand();
     refreshPickerBadges();
-    document.getElementById('resultsSection').hidden = true;
+    hideResults();
   });
 
   renderHand();

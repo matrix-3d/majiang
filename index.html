@@ -3,56 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>麻将分析</title>
+  <title>麻将分析 - 向听与进张一目了然</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="page">
-    <header class="header">
-      <h1>麻将分析</h1>
+    <header class="hero">
+      <p class="hero-eyebrow">手牌分析工具</p>
+      <h1 class="hero-title">麻将分析</h1>
+      <p class="hero-tagline">选牌 · 分析 · 听牌一目了然</p>
+      <nav class="nav-tabs" aria-label="功能切换">
+        <button type="button" class="nav-tab active" data-tab="analysis">手牌分析</button>
+        <button type="button" class="nav-tab" data-tab="scoring">多人计分</button>
+      </nav>
     </header>
 
     <main class="main">
-      <section class="card rules-card">
-        <h2>规则与设置</h2>
-        <p class="rules-text">手牌共 14 张，每种牌最多 4 张（共 34 种）。听牌形式：四面子一雀头；可选是否考虑七对子。</p>
-        <label class="toggle-wrap">
-          <input type="checkbox" id="includeSevenPairs" checked>
-          <span>考虑七对子</span>
-        </label>
+      <div id="analysisView" class="tab-panel">
+      <section class="section">
+        <h2 class="section-title">规则与设置</h2>
+        <div class="card rules-card">
+          <p class="rules-text">手牌 14 张，每种最多 4 张（34 种）。听牌：四面子一雀头；可选七对子。</p>
+          <label class="toggle-wrap">
+            <input type="checkbox" id="includeSevenPairs" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">考虑七对子</span>
+          </label>
+        </div>
       </section>
 
-      <section class="card hand-card">
-        <div class="hand-header">
-          <h2>当前手牌 <span id="handCount">0</span>/14</h2>
+      <section class="section">
+        <h2 class="section-title">当前手牌 <span id="handCount" class="count">0</span>/14</h2>
+        <div class="card hand-card">
           <div class="hand-actions">
             <button type="button" class="btn btn-sort" id="btnSort" disabled>理牌</button>
             <button type="button" class="btn btn-clear" id="btnClear" disabled>一键清空</button>
           </div>
+          <div id="handArea" class="hand-area empty">
+            <p class="hint">在下方选牌区点击牌面添加，凑齐 14 张将自动分析</p>
+          </div>
         </div>
-        <div id="handArea" class="hand-area empty">
-          <p class="hint">在下方选牌区点击牌面添加，凑齐 14 张后点击「开始分析」</p>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">选牌</h2>
+        <p class="section-desc">点击添加，每种最多 4 张，共 14 张</p>
+        <div class="card picker-card">
+          <div id="pickerGrid" class="picker-grid"></div>
         </div>
       </section>
 
-      <section class="card picker-card">
-        <h2>选牌</h2>
-        <p class="picker-hint">点击牌面添加，每种最多 4 张，共 14 张</p>
-        <div id="pickerGrid" class="picker-grid"></div>
-      </section>
+      <div class="results-placeholder" id="resultsPlaceholder">
+        <div class="placeholder-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M24 8v32M8 24h32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <p>凑齐 14 张手牌后将自动显示分析结果</p>
+        <p class="placeholder-sub">分析结果将显示在此处</p>
+      </div>
 
-      <section class="card analyze-wrap" id="analyzeWrap" hidden>
-        <button type="button" class="btn btn-analyze" id="btnAnalyze">开始分析</button>
+      <section class="section results-section" id="resultsSection" hidden>
+        <h2 class="section-title">打每张后的向听与进张</h2>
+        <div class="card results-card">
+          <div id="agariOnlyCard" class="agari-only-card" hidden></div>
+          <div id="recommendedCard" class="recommended-card" hidden></div>
+          <div id="resultsList" class="results-list"></div>
+        </div>
       </section>
+      </div>
 
-      <section class="results-section" id="resultsSection" hidden>
-        <h2>打每张后的向听与进张</h2>
-        <div id="recommendedCard" class="recommended-card" hidden></div>
-        <div id="resultsList" class="results-list"></div>
-      </section>
+      <div id="scoringView" class="tab-panel" hidden>
+        <div id="scoringContainer" class="scoring-container"></div>
+      </div>
     </main>
+
+    <footer class="footer">
+      <p>手牌 14 张 · 向听数 · 进张 · 推荐方案</p>
+    </footer>
   </div>
   <script src="js/mahjong.js"></script>
   <script src="js/app.js"></script>
+  <script>window.SUPABASE_URL = window.SUPABASE_URL || ''; window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';</script>
+  <script src="js/supabase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/scoring.js"></script>
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll('.nav-tab');
+      var panels = document.querySelectorAll('.tab-panel');
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          var tab = t.getAttribute('data-tab');
+          tabs.forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-tab') === tab); });
+          panels.forEach(function (p) {
+            var show = (tab === 'analysis' && p.id === 'analysisView') || (tab === 'scoring' && p.id === 'scoringView');
+            p.hidden = !show;
+          });
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

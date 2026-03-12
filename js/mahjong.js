@@ -8,9 +8,15 @@ const MahjongRules = {
   tileTypeCount: 34
 };
 
-/**
- * 牌名：id -> 显示名
- */
+/** Unicode 麻将牌块 U+1F000：东1F000 南1F001 西1F002 北1F003 中1F004 发1F005 白1F006；万1-9: 1F007-1F00F；条1-9: 1F010-1F018；筒1-9: 1F019-1F021 */
+function tileUnicode(id) {
+  if (id >= 31) return String.fromCodePoint(0x1F000 + (id - 31));
+  if (id <= 9) return String.fromCodePoint(0x1F007 + (id - 1));
+  if (id <= 19) return String.fromCodePoint(0x1F010 + (id - 11));
+  return String.fromCodePoint(0x1F019 + (id - 21));
+}
+
+/** 牌名（辅助/无障碍）：id -> 文字名 */
 function tileDisplayName(id) {
   if (id >= 31) {
     const names = ['', '东', '南', '西', '北', '中', '发', '白'];
@@ -19,6 +25,21 @@ function tileDisplayName(id) {
   const n = ((id - 1) % 10) + 1;
   const suit = id <= 9 ? '万' : id <= 19 ? '条' : '筒';
   return n + suit;
+}
+
+/**
+ * 麻将牌 SVG 图标 URL（来自 FluffyStuff/riichi-mahjong-tiles，MIT/CC-PDDC）
+ * 使用 jsDelivr CDN 加速
+ */
+const TILE_ICONS_BASE = 'https://cdn.jsdelivr.net/gh/FluffyStuff/riichi-mahjong-tiles@master/Regular';
+function tileSvgUrl(id) {
+  if (id >= 31) {
+    const names = ['Ton', 'Nan', 'Shaa', 'Pei', 'Chun', 'Hatsu', 'Haku'];
+    return TILE_ICONS_BASE + '/' + names[id - 31] + '.svg';
+  }
+  if (id <= 9) return TILE_ICONS_BASE + '/Man' + id + '.svg';
+  if (id <= 19) return TILE_ICONS_BASE + '/Sou' + (id - 10) + '.svg';
+  return TILE_ICONS_BASE + '/Pin' + (id - 20) + '.svg';
 }
 
 /**
@@ -108,6 +129,74 @@ function tileCounts(hand) {
   return counts;
 }
 
+/** 将手牌转为长度 38 的计数数组（下标 1..34 为牌型） */
+function handToCounts(hand) {
+  const c = Array(38).fill(0);
+  hand.forEach(t => { c[t.id] = (c[t.id] || 0) + 1; });
+  return c;
+}
+
+/**
+ * 14 张是否和了（四面子一雀头，或可选七对子）
+ * @param {Array<{id: number}>} hand - 14 张手牌
+ * @param {boolean} [includeSevenPairs=false] - 是否算七对子
+ */
+function isAgari(hand, includeSevenPairs = false) {
+  if (hand.length !== 14) return false;
+  const c = handToCounts(hand);
+  if (includeSevenPairs) {
+    let pairs = 0;
+    for (let i = 1; i < 38; i++) if (c[i] >= 2) pairs++;
+    if (pairs === 7) return true;
+  }
+  for (let i = 1; i < 38; i++) {
+    if (c[i] >= 2) {
+      c[i] -= 2;
+      if (canForm4Meld(c)) { c[i] += 2; return true; }
+      c[i] += 2;
+    }
+  }
+  return false;
+}
+
+/** 12 张能否组成 4 个面子（递归：尝试所有面子取法） */
+function canForm4Meld(c) {
+  const sum = c.reduce((a, b) => a + b, 0);
+  if (sum === 0) return true;
+  for (let i = 1; i < 38; i++) {
+    if (c[i] >= 3) {
+      c[i] -= 3;
+      if (canForm4Meld(c)) { c[i] += 3; return true; }
+      c[i] += 3;
+    }
+    if (i <= 27) {
+      const base = Math.floor((i - 1) / 10) * 10 + 1;
+      const n = i - base + 1;
+      if (n <= 7 && c[i] > 0 && c[i + 1] > 0 && c[i + 2] > 0) {
+        c[i]--; c[i + 1]--; c[i + 2]--;
+        if (canForm4Meld(c)) { c[i]++; c[i + 1]++; c[i + 2]++; return true; }
+        c[i]++; c[i + 1]++; c[i + 2]++;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * 13 张听牌手牌：和了总张数（可胡的牌 × 各自剩余张数）
+ * countInHand: 当前 13 张中每种牌的张数
+ */
+function agariTilesCount(hand13, countInHand) {
+  let total = 0;
+  for (const drawId of ALL_TILE_IDS) {
+    const withDraw = [...hand13, { id: drawId }];
+    if (!isAgari(withDraw)) continue;
+    const remain = MahjongRules.maxCopiesPerTileType - (countInHand[drawId] || 0);
+    total += Math.max(0, remain);
+  }
+  return total;
+}
+
 function removeOne(hand, tile) {
   let found = false;
   return hand.filter(t => {
@@ -162,13 +251,37 @@ function analyzeHand(hand, includeSevenPairs = false) {
     }
 
     const tenpaiTotal = tenpai.reduce((sum, t) => sum + (MahjongRules.maxCopiesPerTileType - (countInHand[t.id] || 0)), 0);
+
+    // 深一层：一上听时，上听后的「和了张数」合计，用于同水平时比较谁更好
+    let tenpaiAgariSum = tenpaiTotal;
+    if (baseShanten === 1 && tenpai.length > 0) {
+      tenpaiAgariSum = 0;
+      for (const drawT of tenpai) {
+        const hand14 = [...oneLess, drawT];
+        let bestAgari = 0;
+        hand14.forEach(d => {
+          const afterDiscard = removeOne(hand14, d);
+          if (calculateShanten(afterDiscard, includeSevenPairs) !== 0) return;
+          const cnt = tileCounts(afterDiscard);
+          const agari = agariTilesCount(afterDiscard, cnt);
+          if (agari > bestAgari) bestAgari = agari;
+        });
+        tenpaiAgariSum += bestAgari;
+      }
+    }
+
+    // 听牌时显式和了张数（与 tenpaiTotalTiles 一致，便于展示）
+    const agariCount = baseShanten === 0 ? agariTilesCount(oneLess, countInHand) : 0;
+
     results.push({
       tile: toDiscard,
       shanten: baseShanten,
       improvementTiles: improvement,
       tenpaiTiles: tenpai,
       tileCountInHand: countInHand,
-      tenpaiTotalTiles: tenpaiTotal
+      tenpaiTotalTiles: tenpaiTotal,
+      tenpaiAgariSum: tenpaiAgariSum,
+      agariTilesCount: agariCount
     });
   }
   return results.sort((a, b) => a.tile.id - b.tile.id);
@@ -178,6 +291,10 @@ function recommended(options) {
   if (!options.length) return null;
   return options.reduce((best, opt) => {
     if (opt.shanten !== best.shanten) return opt.shanten < best.shanten ? opt : best;
-    return opt.tenpaiTotalTiles > best.tenpaiTotalTiles ? opt : best;
+    if (opt.tenpaiTotalTiles !== best.tenpaiTotalTiles) return opt.tenpaiTotalTiles > best.tenpaiTotalTiles ? opt : best;
+    // 向听、上听张数都一致时，选上听后和了张数更多的（深一层）
+    const aSum = opt.tenpaiAgariSum != null ? opt.tenpaiAgariSum : 0;
+    const bSum = best.tenpaiAgariSum != null ? best.tenpaiAgariSum : 0;
+    return aSum > bSum ? opt : best;
   });
 }
