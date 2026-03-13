@@ -252,7 +252,7 @@ function analyzeHand(hand, includeSevenPairs = false) {
 
     const tenpaiTotal = tenpai.reduce((sum, t) => sum + (MahjongRules.maxCopiesPerTileType - (countInHand[t.id] || 0)), 0);
 
-    // 深一层：一上听时，上听后的「和了张数」合计，用于同水平时比较谁更好
+    // 深一层：一向听时，上听后的「和了张数」合计，用于同水平时比较谁更好
     let tenpaiAgariSum = tenpaiTotal;
     if (baseShanten === 1 && tenpai.length > 0) {
       tenpaiAgariSum = 0;
@@ -273,6 +273,9 @@ function analyzeHand(hand, includeSevenPairs = false) {
     // 听牌时显式和了张数（与 tenpaiTotalTiles 一致，便于展示）
     const agariCount = baseShanten === 0 ? agariTilesCount(oneLess, countInHand) : 0;
 
+    // 多向听时：进张面总张数（摸到能改善的牌 × 剩余枚数之和），用于同向听数时的比较
+    const improvementTotalTiles = improvement.reduce((sum, t) => sum + (MahjongRules.maxCopiesPerTileType - (countInHand[t.id] || 0)), 0);
+
     results.push({
       tile: toDiscard,
       shanten: baseShanten,
@@ -281,20 +284,31 @@ function analyzeHand(hand, includeSevenPairs = false) {
       tileCountInHand: countInHand,
       tenpaiTotalTiles: tenpaiTotal,
       tenpaiAgariSum: tenpaiAgariSum,
-      agariTilesCount: agariCount
+      agariTilesCount: agariCount,
+      improvementTotalTiles: improvementTotalTiles
     });
   }
   return results.sort((a, b) => a.tile.id - b.tile.id);
 }
 
+/**
+ * 推荐打牌：从多个打牌方案中选出最优
+ * 场景区分：
+ * - 已听牌（shanten=0）：比和了张数，越多越优
+ * - 一向听（shanten=1）：比上听总张数，再比上听后的和了张数合计
+ * - 多向听（shanten≥2）：比向听数，再比进张面总张数
+ */
 function recommended(options) {
   if (!options.length) return null;
   return options.reduce((best, opt) => {
     if (opt.shanten !== best.shanten) return opt.shanten < best.shanten ? opt : best;
     if (opt.tenpaiTotalTiles !== best.tenpaiTotalTiles) return opt.tenpaiTotalTiles > best.tenpaiTotalTiles ? opt : best;
-    // 向听、上听张数都一致时，选上听后和了张数更多的（深一层）
     const aSum = opt.tenpaiAgariSum != null ? opt.tenpaiAgariSum : 0;
     const bSum = best.tenpaiAgariSum != null ? best.tenpaiAgariSum : 0;
-    return aSum > bSum ? opt : best;
+    if (aSum !== bSum) return aSum > bSum ? opt : best;
+    // 多向听时：上听相关均为 0，用进张面总张数比较
+    const aImp = opt.improvementTotalTiles != null ? opt.improvementTotalTiles : 0;
+    const bImp = best.improvementTotalTiles != null ? best.improvementTotalTiles : 0;
+    return aImp > bImp ? opt : best;
   });
 }
